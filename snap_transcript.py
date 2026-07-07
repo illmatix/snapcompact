@@ -70,7 +70,9 @@ def main():
         except (OSError, ValueError, KeyError):
             savings = ""
         print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit",
+            # echo the event we were invoked from — hardcoding broke when stale
+            # in-session hook wiring (SessionStart) ran a newer script version
+            "hookEventName": hook.get("hook_event_name", "UserPromptSubmit"),
             "additionalContext": (
                 savings
                 + "Pre-compaction conversation history was rendered to pixel-font PNG(s): "
