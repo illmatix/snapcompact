@@ -18,8 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/snap_transcript.py announce 2>/dev/null || true",
-            "timeout": 10
+            "command": "sleep 4; python3 ${CLAUDE_PLUGIN_ROOT}/snap_transcript.py announce 2>/dev/null || true",
+            "timeout": 15
           }
         ]
       }
