@@ -15,7 +15,7 @@ claude marketplace add illmatix/snapcompact   # or a local clone path
 claude plugin install snapcompact@snapcompact
 ```
 
-Ships the PreCompact/SessionStart auto-snapshot hooks and a `/snap <file>`
+Ships the PreCompact/UserPromptSubmit auto-snapshot hooks and a `/snap <file>`
 command. If you previously pasted the hooks into `~/.claude/settings.json`
 manually, remove them — the plugin provides the same ones.
 
@@ -61,16 +61,16 @@ transcribes the pixel text internally and works from it.
 
 **Auto-snapshot before compaction** — `snap_transcript.py` is hook glue for
 Claude Code: PreCompact renders the transcript tail (last ~72K chars, ≤2 pages)
-to `~/.claude/snaps/<session_id>/`; SessionStart (matcher `compact`) tells the
-post-compact session to Read them if it needs lost detail. Register in
-`~/.claude/settings.json`:
+to `~/.claude/snaps/<session_id>/`; UserPromptSubmit tells the post-compact
+session (once) to Read them if it needs lost detail. The plugin registers both
+automatically; manual equivalent in `~/.claude/settings.json`:
 
 ```json
 "hooks": {
   "PreCompact": [{"hooks": [{"type": "command", "timeout": 30,
-    "command": "python3 /home/illmatix/workspace/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
-  "SessionStart": [{"matcher": "compact", "hooks": [{"type": "command", "timeout": 10,
-    "command": "python3 /home/illmatix/workspace/snapcompact/snap_transcript.py announce 2>/dev/null || true"}]}]
+    "command": "python3 /path/to/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
+  "UserPromptSubmit": [{"hooks": [{"type": "command", "timeout": 15,
+    "command": "python3 /path/to/snapcompact/snap_transcript.py announce 2>/dev/null || true"}]}]
 }
 ```
 

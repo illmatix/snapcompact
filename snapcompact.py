@@ -20,7 +20,17 @@ CANVAS = 1568                     # Anthropic max-res tile; billed (1568*1568)/7
 MARGIN = 8
 # DejaVu Mono at 9 renders ~5.4x14 px — same density as PIL's 6x11 bitmap font, but
 # antialiased glyphs keep 6/8 distinct (bitmap font measured 6<->8 flips in recall tests)
-FONT = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 9)
+_FONT_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",         # debian/ubuntu
+    "/usr/share/fonts/dejavu-sans-mono-fonts/DejaVuSansMono.ttf",  # fedora
+    str(Path.home() / "Library/Fonts/DejaVuSansMono.ttf"),         # macOS: brew install --cask font-dejavu
+    "/Library/Fonts/DejaVuSansMono.ttf",                           # macOS system-wide
+]
+try:
+    FONT = ImageFont.truetype(next(p for p in _FONT_PATHS if Path(p).exists()), 9)
+except StopIteration:
+    sys.exit("snapcompact: DejaVu Sans Mono not found "
+             "(apt install fonts-dejavu-core / brew install --cask font-dejavu)")
 CHAR_W = FONT.getlength("M")  # monospace: every glyph has the same advance
 CHAR_H = sum(FONT.getmetrics())
 LINE_GAP = 0
