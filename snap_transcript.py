@@ -15,6 +15,7 @@ from snapcompact import ROWS, render, wrap_lines
 
 SNAP_DIR = Path.home() / ".claude" / "snaps"
 MAX_CHARS = 72_000  # ~2 pages ≈ 6.5K image tokens; older history is dropped
+MIN_CHARS = 2_000   # below this the compact summary already covers it; not worth a snap
 
 
 def transcript_text(path):
@@ -38,16 +39,20 @@ def main():
 
     if sys.argv[1] == "snap":
         text = transcript_text(hook["transcript_path"])[-MAX_CHARS:]
-        if not text.strip():
+        if len(text.strip()) < MIN_CHARS:
             return
         outdir.mkdir(parents=True, exist_ok=True)
         for old in outdir.glob("*.png"):
             old.unlink()
         lines = wrap_lines(text)
         pages = [lines[i:i + ROWS] for i in range(0, len(lines), ROWS)]
+        image_tokens = 0
         for n, page in enumerate(pages, 1):
-            render(page).save(outdir / f"history-{n:03d}.png")
-        (outdir / "meta.json").write_text(json.dumps({"chars": len(text), "pages": len(pages)}))
+            img = render(page)
+            image_tokens += img.width * img.height // 750
+            img.save(outdir / f"history-{n:03d}.png")
+        (outdir / "meta.json").write_text(json.dumps(
+            {"chars": len(text), "pages": len(pages), "image_tokens": image_tokens}))
 
     elif sys.argv[1] == "announce":
         pngs = sorted(outdir.glob("*.png"))
@@ -56,7 +61,7 @@ def main():
         try:
             meta = json.loads((outdir / "meta.json").read_text())
             text_tokens = meta["chars"] // 4
-            image_tokens = meta["pages"] * 3278
+            image_tokens = meta.get("image_tokens") or meta["pages"] * 3278
             savings = (f"Access ~{text_tokens:,} tokens of pre-compaction history for "
                        f"~{image_tokens:,} image tokens ({text_tokens / image_tokens:.1f}x savings). ")
         except (OSError, ValueError, KeyError):

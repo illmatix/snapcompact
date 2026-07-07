@@ -45,7 +45,9 @@ def wrap_lines(text):
 
 
 def render(lines):
-    img = Image.new("RGB", (CANVAS, CANVAS), "white")
+    # crop to used rows — Anthropic bills (w*h)/750, so a short last page costs less
+    h = MARGIN * 2 + max(len(lines), 1) * (CHAR_H + LINE_GAP)
+    img = Image.new("RGB", (CANVAS, h), "white")
     draw = ImageDraw.Draw(img)
     for i, line in enumerate(lines):
         y = MARGIN + i * (CHAR_H + LINE_GAP)
@@ -65,13 +67,15 @@ def main():
 
     lines = wrap_lines(text)
     pages = [lines[i:i + ROWS] for i in range(0, len(lines), ROWS)] or [[]]
+    image_tokens = 0
     for n, page in enumerate(pages, 1):
         path = outdir / f"{args.input.stem}.snap-{n:03d}.png"
-        render(page).save(path)
+        img = render(page)
+        image_tokens += img.width * img.height // 750
+        img.save(path)
         print(path)
 
     text_tokens = len(text) // 4
-    image_tokens = len(pages) * (CANVAS * CANVAS) // 750
     print(f"\n{len(text):,} chars on {len(pages)} page(s): "
           f"~{text_tokens:,} text tokens -> ~{image_tokens:,} image tokens "
           f"({text_tokens / max(image_tokens, 1):.1f}x compression)", file=sys.stderr)
