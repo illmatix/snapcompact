@@ -44,17 +44,28 @@ def main():
         for old in outdir.glob("*.png"):
             old.unlink()
         lines = wrap_lines(text)
-        for n, page in enumerate([lines[i:i + ROWS] for i in range(0, len(lines), ROWS)], 1):
+        pages = [lines[i:i + ROWS] for i in range(0, len(lines), ROWS)]
+        for n, page in enumerate(pages, 1):
             render(page).save(outdir / f"history-{n:03d}.png")
+        (outdir / "meta.json").write_text(json.dumps({"chars": len(text), "pages": len(pages)}))
 
     elif sys.argv[1] == "announce":
         pngs = sorted(outdir.glob("*.png"))
         if not pngs:
             return
+        try:
+            meta = json.loads((outdir / "meta.json").read_text())
+            text_tokens = meta["chars"] // 4
+            image_tokens = meta["pages"] * 3278
+            savings = (f"Access ~{text_tokens:,} tokens of pre-compaction history for "
+                       f"~{image_tokens:,} image tokens ({text_tokens / image_tokens:.1f}x savings). ")
+        except (OSError, ValueError, KeyError):
+            savings = ""
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "SessionStart",
             "additionalContext": (
-                "Pre-compaction conversation history was rendered to pixel-font PNG(s): "
+                savings
+                + "Pre-compaction conversation history was rendered to pixel-font PNG(s): "
                 + ", ".join(str(p) for p in pngs)
                 + ". Newlines appear as ¶. If you need detail the compact summary lost, "
                   "Read these images (each costs ~3.3K tokens). Long hex values appear "
