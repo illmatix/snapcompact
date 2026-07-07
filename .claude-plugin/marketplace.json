@@ -1,0 +1,14 @@
+{
+  "name": "snapcompact",
+  "description": "Pixel-font PNG context compression for vision-capable Claude",
+  "owner": {
+    "name": "Chad Payne"
+  },
+  "plugins": [
+    {
+      "name": "snapcompact",
+      "source": "./",
+      "description": "Pixel-font PNG context compression with PreCompact auto-snapshot hooks"
+    }
+  ]
+}

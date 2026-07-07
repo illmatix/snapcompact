@@ -10,6 +10,7 @@ Usage:
 Writes INPUT.snap-001.png, INPUT.snap-002.png, ... and prints a token-cost summary.
 """
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -17,20 +18,28 @@ from PIL import Image, ImageDraw, ImageFont
 
 CANVAS = 1568                     # Anthropic max-res tile; billed (1568*1568)/750 ~= 3278 tokens
 MARGIN = 8
-# ponytail: PIL's built-in bitmap font is ~6x11 px, right in the article's 35-40 px^2/char sweet spot
-FONT = ImageFont.load_default()
-CHAR_W, CHAR_H = 6, 11
+# DejaVu Mono at 9 renders ~5.4x14 px — same density as PIL's 6x11 bitmap font, but
+# antialiased glyphs keep 6/8 distinct (bitmap font measured 6<->8 flips in recall tests)
+FONT = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 9)
+CHAR_W = FONT.getlength("M")  # monospace: every glyph has the same advance
+CHAR_H = sum(FONT.getmetrics())
 LINE_GAP = 0
 # line color cycling — article: raised small-VL decode confidence 0.39 -> 0.94
 COLORS = ["#000000", "#00358f", "#7a0000", "#004a00"]
 
-COLS = (CANVAS - 2 * MARGIN) // CHAR_W          # 258 chars per row
-ROWS = (CANVAS - 2 * MARGIN) // (CHAR_H + LINE_GAP)  # 141 rows per page
+COLS = int((CANVAS - 2 * MARGIN) // CHAR_W)          # 286 chars per row
+ROWS = (CANVAS - 2 * MARGIN) // (CHAR_H + LINE_GAP)  # 129 rows per page
 
 NEWLINE_GLYPH = "¶"  # pack text as one continuous stream; source newlines stay visible (latin-1, PIL default font has it)
 
 
+# recall tests: remaining misreads cluster in long random hex (a few chars per 40).
+# Flips are independent per char, so a second copy lets the reader cross-check.
+HEX_RE = re.compile(r"\b[0-9a-fA-F]{16,}\b")
+
+
 def wrap_lines(text):
+    text = HEX_RE.sub(lambda m: f"{m.group(0)} [dup:{m.group(0)}]", text)
     stream = text.replace("\n", NEWLINE_GLYPH)
     return [stream[i:i + COLS] for i in range(0, len(stream), COLS)]
 
