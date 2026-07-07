@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Claude Code hook glue for snapcompact.
 
-PreCompact:   snap_transcript.py snap      — render the transcript tail to PNGs
-SessionStart: snap_transcript.py announce  — tell the post-compact session they exist
+PreCompact:       snap_transcript.py snap      — render the transcript tail to PNGs
+UserPromptSubmit: snap_transcript.py announce  — tell the post-compact session they
+                  exist (once; runs after all SessionStart output, so no hook race)
 
 Both modes read the hook JSON from stdin. PNGs land in ~/.claude/snaps/<session_id>/.
 """
@@ -44,6 +45,7 @@ def main():
         outdir.mkdir(parents=True, exist_ok=True)
         for old in outdir.glob("*.png"):
             old.unlink()
+        (outdir / "announced").unlink(missing_ok=True)  # fresh snap → re-announce
         lines = wrap_lines(text)
         pages = [lines[i:i + ROWS] for i in range(0, len(lines), ROWS)]
         image_tokens = 0
@@ -55,8 +57,9 @@ def main():
             {"chars": len(text), "pages": len(pages), "image_tokens": image_tokens}))
 
     elif sys.argv[1] == "announce":
+        flag = outdir / "announced"
         pngs = sorted(outdir.glob("*.png"))
-        if not pngs:
+        if not pngs or flag.exists():
             return
         try:
             meta = json.loads((outdir / "meta.json").read_text())
@@ -67,7 +70,7 @@ def main():
         except (OSError, ValueError, KeyError):
             savings = ""
         print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "SessionStart",
+            "hookEventName": "UserPromptSubmit",
             "additionalContext": (
                 savings
                 + "Pre-compaction conversation history was rendered to pixel-font PNG(s): "
@@ -77,6 +80,7 @@ def main():
                   "twice as `value [dup:value]` — trust them only when both copies match."
             ),
         }}))
+        flag.write_text("")
 
 
 if __name__ == "__main__":

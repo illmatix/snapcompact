@@ -12,13 +12,12 @@
         ]
       }
     ],
-    "SessionStart": [
+    "UserPromptSubmit": [
       {
-        "matcher": "compact",
         "hooks": [
           {
             "type": "command",
-            "command": "sleep 4; python3 ${CLAUDE_PLUGIN_ROOT}/snap_transcript.py announce 2>/dev/null || true",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/snap_transcript.py announce 2>/dev/null || true",
             "timeout": 15
           }
         ]
