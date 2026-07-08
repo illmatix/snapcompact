@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Claude Code hook glue for snapcompact.
 
-PreCompact:       snap_transcript.py snap      — render the transcript tail to PNGs
-UserPromptSubmit: snap_transcript.py announce  — tell the post-compact session they
-                  exist (once; runs after all SessionStart output, so no hook race)
+PreCompact + SessionEnd(clear): snap_transcript.py snap    — render transcript tail to PNGs
+SessionStart(compact|clear):    snap_transcript.py notify  — one-line savings note the
+                                user sees in the message area
+UserPromptSubmit:               snap_transcript.py announce — tell the post-compact
+                                session the PNGs exist (once; runs after all
+                                SessionStart output, so no hook race)
 
-Both modes read the hook JSON from stdin. PNGs land in ~/.claude/snaps/<session_id>/.
+All modes read the hook JSON from stdin. PNGs land in ~/.claude/snaps/<session_id>/.
+/clear starts a new session_id, so notify/announce fall back to the newest snap dir
+whose meta.json cwd matches this project.
 """
 import json
 import sys
@@ -34,11 +39,43 @@ def transcript_text(path):
     return "\n".join(p for p in parts if p)
 
 
+def snap_dir_for(hook):
+    """Snap dir for this session, else newest dir snapped from the same cwd
+    (/clear hands the follow-up session a new session_id)."""
+    outdir = SNAP_DIR / hook["session_id"]
+    if list(outdir.glob("*.png")):
+        return outdir
+    candidates = sorted((d for d in SNAP_DIR.iterdir() if d.is_dir()),
+                        key=lambda d: d.stat().st_mtime, reverse=True)
+    for d in candidates:
+        try:
+            meta = json.loads((d / "meta.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if meta.get("cwd") == hook.get("cwd") and list(d.glob("*.png")):
+            return d
+    return None
+
+
+def savings_line(outdir):
+    try:
+        meta = json.loads((outdir / "meta.json").read_text())
+        text_tokens = meta["chars"] // 4
+        image_tokens = meta.get("image_tokens") or meta["pages"] * 3278
+        return (f"~{text_tokens:,} tokens of pre-compaction history for "
+                f"~{image_tokens:,} image tokens ({text_tokens / image_tokens:.1f}x savings)")
+    except (OSError, ValueError, KeyError, ZeroDivisionError):
+        return ""
+
+
 def main():
     hook = json.load(sys.stdin)
-    outdir = SNAP_DIR / hook["session_id"]
 
     if sys.argv[1] == "snap":
+        # SessionEnd fires on every exit; only /clear warrants a snap
+        if hook.get("hook_event_name") == "SessionEnd" and hook.get("reason") != "clear":
+            return
+        outdir = SNAP_DIR / hook["session_id"]
         text = transcript_text(hook["transcript_path"])[-MAX_CHARS:]
         if len(text.strip()) < MIN_CHARS:
             return
@@ -54,21 +91,28 @@ def main():
             image_tokens += img.width * img.height // 750
             img.save(outdir / f"history-{n:03d}.png")
         (outdir / "meta.json").write_text(json.dumps(
-            {"chars": len(text), "pages": len(pages), "image_tokens": image_tokens}))
+            {"chars": len(text), "pages": len(pages),
+             "image_tokens": image_tokens, "cwd": hook.get("cwd", "")}))
+
+    elif sys.argv[1] == "notify":
+        outdir = snap_dir_for(hook)
+        if not outdir or (outdir / "announced").exists():
+            return
+        line = savings_line(outdir)
+        if line:
+            # plain stdout on SessionStart → visible in the message area
+            print(f"snapcompact: snapped {line}")
 
     elif sys.argv[1] == "announce":
+        outdir = snap_dir_for(hook)
+        if not outdir:
+            return
         flag = outdir / "announced"
         pngs = sorted(outdir.glob("*.png"))
-        if not pngs or flag.exists():
+        if flag.exists():
             return
-        try:
-            meta = json.loads((outdir / "meta.json").read_text())
-            text_tokens = meta["chars"] // 4
-            image_tokens = meta.get("image_tokens") or meta["pages"] * 3278
-            savings = (f"Access ~{text_tokens:,} tokens of pre-compaction history for "
-                       f"~{image_tokens:,} image tokens ({text_tokens / image_tokens:.1f}x savings). ")
-        except (OSError, ValueError, KeyError):
-            savings = ""
+        line = savings_line(outdir)
+        savings = f"Access {line}. " if line else ""
         print(json.dumps({"hookSpecificOutput": {
             # echo the event we were invoked from — hardcoding broke when stale
             # in-session hook wiring (SessionStart) ran a newer script version

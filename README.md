@@ -59,16 +59,24 @@ transcribes the pixel text internally and works from it.
 
 ## Recipes
 
-**Auto-snapshot before compaction** — `snap_transcript.py` is hook glue for
-Claude Code: PreCompact renders the transcript tail (last ~72K chars, ≤2 pages)
-to `~/.claude/snaps/<session_id>/`; UserPromptSubmit tells the post-compact
-session (once) to Read them if it needs lost detail. The plugin registers both
-automatically; manual equivalent in `~/.claude/settings.json`:
+**Auto-snapshot before compaction or clear** — `snap_transcript.py` is hook
+glue for Claude Code: PreCompact and SessionEnd (only on `/clear`) render the
+transcript tail (last ~72K chars, ≤2 pages) to `~/.claude/snaps/<session_id>/`;
+SessionStart (compact|clear) prints a one-line savings note in the message
+area; UserPromptSubmit tells the post-compact session (once) to Read the PNGs
+if it needs lost detail. `/clear` starts a new session_id, so lookups fall back
+to the newest snap dir whose recorded cwd matches the project. The plugin
+registers all of these automatically; manual equivalent in
+`~/.claude/settings.json`:
 
 ```json
 "hooks": {
   "PreCompact": [{"hooks": [{"type": "command", "timeout": 30,
     "command": "python3 /path/to/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
+  "SessionEnd": [{"hooks": [{"type": "command", "timeout": 30,
+    "command": "python3 /path/to/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
+  "SessionStart": [{"matcher": "compact|clear", "hooks": [{"type": "command", "timeout": 10,
+    "command": "python3 /path/to/snapcompact/snap_transcript.py notify 2>/dev/null || true"}]}],
   "UserPromptSubmit": [{"hooks": [{"type": "command", "timeout": 15,
     "command": "python3 /path/to/snapcompact/snap_transcript.py announce 2>/dev/null || true"}]}]
 }
