@@ -150,8 +150,14 @@ def main():
             return
         line = savings_line(outdir)
         if line:
-            # plain stdout on SessionStart → visible in the message area
-            print(f"snapcompact: snapped {line}")
+            # additionalContext (not plain stdout) is the channel the transcript
+            # actually renders inline as "SessionStart:... says: <text>"; plain
+            # stdout gets folded into the collapsed post-compact summary and the
+            # user never sees it
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": hook.get("hook_event_name", "SessionStart"),
+                "additionalContext": f"snapcompact: snapped {line}",
+            }}))
 
     elif sys.argv[1] == "announce":
         outdir = snap_dir_for(hook)
