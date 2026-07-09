@@ -150,14 +150,12 @@ def main():
             return
         line = savings_line(outdir)
         if line:
-            # additionalContext (not plain stdout) is the channel the transcript
-            # actually renders inline as "SessionStart:... says: <text>"; plain
-            # stdout gets folded into the collapsed post-compact summary and the
-            # user never sees it
-            print(json.dumps({"hookSpecificOutput": {
-                "hookEventName": hook.get("hook_event_name", "SessionStart"),
-                "additionalContext": f"snapcompact: snapped {line}",
-            }}))
+            # systemMessage shows the savings note to the user WITHOUT entering
+            # the model context — a token-saver that no longer spends tokens to
+            # report itself. (additionalContext would render inline but cost
+            # context; plain stdout gets folded into the collapsed summary and
+            # the user never sees it.)
+            print(json.dumps({"systemMessage": f"snapcompact: snapped {line}"}))
 
     elif sys.argv[1] == "announce":
         outdir = snap_dir_for(hook)
@@ -168,21 +166,25 @@ def main():
             return
         pngs = sorted(outdir.glob("*.png"))
         line = savings_line(outdir)
-        savings = f"Access {line}. " if line else ""
-        print(json.dumps({"hookSpecificOutput": {
+        out = {"hookSpecificOutput": {
             # echo the event we were invoked from — hardcoding broke when stale
             # in-session hook wiring (SessionStart) ran a newer script version
             "hookEventName": hook.get("hook_event_name", "UserPromptSubmit"),
+            # additionalContext carries ONLY what the model needs (the PNG paths).
+            # The savings brag is user-facing → systemMessage, so it never costs
+            # context tokens.
             "additionalContext": (
-                savings
-                + "Pre-compaction conversation history (user and assistant messages) "
+                "Pre-compaction conversation history (user and assistant messages) "
                   "was rendered to pixel-font PNG(s): "
                 + ", ".join(str(p) for p in pngs)
                 + ". Newlines appear as ¶. If you need detail the compact summary lost, "
                   "Read these images (each costs ~3.3K tokens). Long hex values appear "
                   "twice as `value [dup:value]` — trust them only when both copies match."
             ),
-        }}))
+        }}
+        if line:
+            out["systemMessage"] = f"snapcompact: access {line}"
+        print(json.dumps(out))
         flag.write_text("")
 
 
