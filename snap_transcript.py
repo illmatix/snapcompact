@@ -150,12 +150,15 @@ def main():
             return
         line = savings_line(outdir)
         if line:
-            # systemMessage shows the savings note to the user WITHOUT entering
-            # the model context — a token-saver that no longer spends tokens to
-            # report itself. (additionalContext would render inline but cost
-            # context; plain stdout gets folded into the collapsed summary and
-            # the user never sees it.)
-            print(json.dumps({"systemMessage": f"snapcompact: snapped {line}"}))
+            # additionalContext is the ONLY channel this build renders visibly
+            # (as "SessionStart:compact says: ..."). systemMessage was silently
+            # folded into the collapsed hook-success area AND still leaked into
+            # model context — worst of both. The savings line is ~25 tokens;
+            # showing it visibly beats hiding it to save nothing.
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": hook.get("hook_event_name", "SessionStart"),
+                "additionalContext": f"snapcompact: snapped {line}",
+            }}))
 
     elif sys.argv[1] == "announce":
         outdir = snap_dir_for(hook)
@@ -165,14 +168,14 @@ def main():
         if flag.exists():  # already announced → cheap exit, skip the glob
             return
         pngs = sorted(outdir.glob("*.png"))
-        line = savings_line(outdir)
-        out = {"hookSpecificOutput": {
+        # additionalContext carries what the model needs (PNG paths). The savings
+        # note is shown once at compact time by notify; repeating it via a second
+        # channel here only leaks more tokens (systemMessage isn't out-of-context
+        # on this build) — so announce stays PNG-only.
+        print(json.dumps({"hookSpecificOutput": {
             # echo the event we were invoked from — hardcoding broke when stale
             # in-session hook wiring (SessionStart) ran a newer script version
             "hookEventName": hook.get("hook_event_name", "UserPromptSubmit"),
-            # additionalContext carries ONLY what the model needs (the PNG paths).
-            # The savings brag is user-facing → systemMessage, so it never costs
-            # context tokens.
             "additionalContext": (
                 "Pre-compaction conversation history (user and assistant messages) "
                   "was rendered to pixel-font PNG(s): "
@@ -181,10 +184,7 @@ def main():
                   "Read these images (each costs ~3.3K tokens). Long hex values appear "
                   "twice as `value [dup:value]` — trust them only when both copies match."
             ),
-        }}
-        if line:
-            out["systemMessage"] = f"snapcompact: access {line}"
-        print(json.dumps(out))
+        }}))
         flag.write_text("")
 
 
