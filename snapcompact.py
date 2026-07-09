@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """SnapCompact PoC: render text into dense pixel-font PNGs for vision-model context compression.
 
-Based on https://blog.can.ac/2026/06/10/snapcompact/ — ~40K chars fit in one
-1568x1568 PNG that Anthropic bills as ~3.3K image tokens (vs ~10K text tokens).
+Based on https://blog.can.ac/2026/06/10/snapcompact/ — ~37K chars fit in one
+1568x1568 PNG that Anthropic bills as ~3.3K image tokens (vs ~9K text tokens).
 
 Usage:
     snapcompact.py INPUT.txt [-o OUTDIR]
@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 CANVAS = 1568                     # Anthropic max-res tile; billed (1568*1568)/750 ~= 3278 tokens
 MARGIN = 8
-# DejaVu Mono at 9 renders ~5.4x14 px — same density as PIL's 6x11 bitmap font, but
+# DejaVu Mono at 9 renders ~5.4x12 px — same density as PIL's 6x11 bitmap font, but
 # antialiased glyphs keep 6/8 distinct (bitmap font measured 6<->8 flips in recall tests)
 _FONT_PATHS = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",         # debian/ubuntu
@@ -33,19 +33,18 @@ except StopIteration:
              "(apt install fonts-dejavu-core / brew install --cask font-dejavu)")
 CHAR_W = FONT.getlength("M")  # monospace: every glyph has the same advance
 CHAR_H = sum(FONT.getmetrics())
-LINE_GAP = 0
 # line color cycling — article: raised small-VL decode confidence 0.39 -> 0.94
 COLORS = ["#000000", "#00358f", "#7a0000", "#004a00"]
 
-COLS = int((CANVAS - 2 * MARGIN) // CHAR_W)          # 286 chars per row
-ROWS = (CANVAS - 2 * MARGIN) // (CHAR_H + LINE_GAP)  # 129 rows per page
+COLS = int((CANVAS - 2 * MARGIN) // CHAR_W)  # 286 chars per row
+ROWS = (CANVAS - 2 * MARGIN) // CHAR_H       # 129 rows per page
 
-NEWLINE_GLYPH = "¶"  # pack text as one continuous stream; source newlines stay visible (latin-1, PIL default font has it)
+NEWLINE_GLYPH = "¶"  # pack text as one continuous stream; source newlines stay visible
 
 
 # recall tests: remaining misreads cluster in long random hex (a few chars per 40).
 # Flips are independent per char, so a second copy lets the reader cross-check.
-HEX_RE = re.compile(r"\b[0-9a-fA-F]{16,}\b")
+HEX_RE = re.compile(r"\b(?:0x)?[0-9a-fA-F]{16,}\b")
 
 
 def wrap_lines(text):
@@ -56,11 +55,11 @@ def wrap_lines(text):
 
 def render(lines):
     # crop to used rows — Anthropic bills (w*h)/750, so a short last page costs less
-    h = MARGIN * 2 + max(len(lines), 1) * (CHAR_H + LINE_GAP)
+    h = MARGIN * 2 + max(len(lines), 1) * CHAR_H
     img = Image.new("RGB", (CANVAS, h), "white")
     draw = ImageDraw.Draw(img)
     for i, line in enumerate(lines):
-        y = MARGIN + i * (CHAR_H + LINE_GAP)
+        y = MARGIN + i * CHAR_H
         draw.text((MARGIN, y), line, font=FONT, fill=COLORS[i % len(COLORS)])
     return img
 
