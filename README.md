@@ -84,6 +84,19 @@ automatically. For a manual (non-plugin) setup, copy the four entries from
 [`hooks/hooks.json`](hooks/hooks.json) into `~/.claude/settings.json`, replacing
 `${CLAUDE_PLUGIN_ROOT}` with your clone path.
 
+**Show savings in your statusline** — `snap_transcript.py statusline` reads the
+statusLine JSON on stdin and prints `📸 <savings>` when a snap exists for the
+session (nothing otherwise). It derives the session_id from `transcript_path`
+(the payload omits it) and stays stdlib-only — no PIL — so it is cheap to run on
+every render. It is not auto-wired (statusLine is a single user-owned command);
+pipe the payload through it from your own statusLine, e.g. append its output
+below your existing line:
+
+```bash
+snap=$(printf '%s' "$in" | python3 /path/to/snap_transcript.py statusline 2>/dev/null)
+[ -n "$snap" ] && printf '%s\n%s' "$your_line" "$snap" || printf '%s' "$your_line"
+```
+
 **Compress saved sessions** — ecc's `/save-session` writes to
 `~/.claude/session-data/`; snap the file and point the resuming session at the
 PNGs instead of the raw text (~1/3 the tokens):

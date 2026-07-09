@@ -1,7 +1,7 @@
 {
   "name": "snapcompact",
   "description": "Context compression via pixel-font PNGs: auto-snapshot conversation history before compaction, read back with vision at ~1/3 token cost",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "author": {
     "name": "Chad Payne",
     "email": "chadpayne@gmail.com"

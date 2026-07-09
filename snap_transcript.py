@@ -160,6 +160,18 @@ def main():
                 "additionalContext": f"snapcompact: snapped {line}",
             }}))
 
+    elif sys.argv[1] == "statusline":
+        # Statusline payload has no session_id; derive it from transcript_path's
+        # stem (== session_id, == the snap dir name). Plain stdout, no JSON, no
+        # PIL import — this runs on every HUD render, so it must stay cheap.
+        hook.setdefault("session_id", Path(hook.get("transcript_path", "x")).stem)
+        outdir = snap_dir_for(hook)
+        if not outdir:
+            return
+        line = savings_line(outdir)
+        if line:
+            print(f"📸 {line}")
+
     elif sys.argv[1] == "announce":
         outdir = snap_dir_for(hook)
         if not outdir:
