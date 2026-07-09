@@ -1,23 +1,35 @@
 # SnapCompact PoC
 
 Context compression for **cloud** Claude Code sessions: render text into a dense
-pixel-font PNG that Claude reads back with its vision input at ~1/3 the token cost.
+pixel-font PNG that Claude reads back with its vision input at ~1/3 the token cost
+(measured 2.6–2.8× on this repo's runs).
 Based on [blog.can.ac/2026/06/10/snapcompact](https://blog.can.ac/2026/06/10/snapcompact/).
 
 Does **not** apply to the local GLM-4.7-Flash stack — text-only model, no image input.
+
+## Requirements
+
+- **Pillow** (`pip install "Pillow>=8.0"`) — plugin install does not install Python
+  packages, and every render path imports PIL.
+- **DejaVu Sans Mono** — `apt install fonts-dejavu-core`, `dnf install dejavu-sans-mono-fonts`,
+  or `brew install --cask font-dejavu`.
+
+Linux/macOS only. If either is missing, snapshotting disables itself and prints a
+one-line note on the next compact/clear (nothing else breaks).
 
 ## Install as plugin
 
 The repo is a Claude Code plugin (and its own marketplace):
 
 ```bash
-claude marketplace add illmatix/snapcompact   # or a local clone path
+claude plugin marketplace add illmatix/snapcompact   # or a local clone path
 claude plugin install snapcompact@snapcompact
 ```
 
-Ships the PreCompact/UserPromptSubmit auto-snapshot hooks and a `/snap <file>`
-command. If you previously pasted the hooks into `~/.claude/settings.json`
-manually, remove them — the plugin provides the same ones.
+Ships four hooks (PreCompact, SessionEnd, SessionStart, UserPromptSubmit) that
+auto-snapshot conversation history, plus a `/snap <file>` command. If you previously
+pasted the hooks into `~/.claude/settings.json` manually, remove them — the plugin
+provides the same ones.
 
 ## Usage
 
@@ -52,7 +64,7 @@ transcribes the pixel text internally and works from it.
 ## How it packs
 
 - 1568×1568 canvas (Anthropic's max tile, billed `1568²/750 ≈ 3,278` tokens)
-- DejaVu Sans Mono 9pt (~5.4×14 px), ~37K chars/page — antialiased glyphs fixed
+- DejaVu Sans Mono 9pt (~5.4×12 px), ~37K chars/page — antialiased glyphs fixed
   6↔8 digit flips seen with PIL's 6×11 bitmap font at the same density
 - Text flows as one continuous stream; newlines become `¶`
 - Line colors cycle (article: helps small vision models lock on)
@@ -61,26 +73,15 @@ transcribes the pixel text internally and works from it.
 
 **Auto-snapshot before compaction or clear** — `snap_transcript.py` is hook
 glue for Claude Code: PreCompact and SessionEnd (only on `/clear`) render the
-transcript tail (last ~72K chars, ≤2 pages) to `~/.claude/snaps/<session_id>/`;
-SessionStart (compact|clear) prints a one-line savings note in the message
-area; UserPromptSubmit tells the post-compact session (once) to Read the PNGs
-if it needs lost detail. `/clear` starts a new session_id, so lookups fall back
-to the newest snap dir whose recorded cwd matches the project. The plugin
-registers all of these automatically; manual equivalent in
-`~/.claude/settings.json`:
-
-```json
-"hooks": {
-  "PreCompact": [{"hooks": [{"type": "command", "timeout": 30,
-    "command": "python3 /path/to/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
-  "SessionEnd": [{"hooks": [{"type": "command", "timeout": 30,
-    "command": "python3 /path/to/snapcompact/snap_transcript.py snap 2>/dev/null || true"}]}],
-  "SessionStart": [{"matcher": "compact|clear", "hooks": [{"type": "command", "timeout": 10,
-    "command": "python3 /path/to/snapcompact/snap_transcript.py notify 2>/dev/null || true"}]}],
-  "UserPromptSubmit": [{"hooks": [{"type": "command", "timeout": 15,
-    "command": "python3 /path/to/snapcompact/snap_transcript.py announce 2>/dev/null || true"}]}]
-}
-```
+transcript tail (last ~72K chars, usually ≤2 pages — hex duplication can add a
+third) to `~/.claude/snaps/<session_id>/`; SessionStart (compact|clear) prints a
+one-line savings note in the message area; UserPromptSubmit tells the post-compact
+session (once) to Read the PNGs if it needs lost detail. `/clear` starts a new
+session_id, so lookups fall back to the newest snap dir whose recorded cwd matches
+the project and was snapped in the last few minutes. The plugin registers all four
+automatically. For a manual (non-plugin) setup, copy the four entries from
+[`hooks/hooks.json`](hooks/hooks.json) into `~/.claude/settings.json`, replacing
+`${CLAUDE_PLUGIN_ROOT}` with your clone path.
 
 **Compress saved sessions** — ecc's `/save-session` writes to
 `~/.claude/session-data/`; snap the file and point the resuming session at the
@@ -106,3 +107,6 @@ python3 snapcompact.py /var/log/app/today.log -o /tmp/logsnap/
   output per the article); savings still dominate for repeated context.
 - Requires a vision-capable model. Cloud Claude: yes. Local llama.cpp text
   models: no.
+- Latin/ASCII text only. Characters outside DejaVu Sans Mono's coverage (emoji,
+  CJK) render as identical blank boxes — a heavily non-Latin transcript snaps
+  "successfully" but reads back unrecoverable. Keep such history as text.

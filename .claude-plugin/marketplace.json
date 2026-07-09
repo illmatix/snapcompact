@@ -8,7 +8,7 @@
     {
       "name": "snapcompact",
       "source": "./",
-      "description": "Pixel-font PNG context compression with PreCompact auto-snapshot hooks"
+      "description": "Pixel-font PNG context compression with auto-snapshot hooks (PreCompact, SessionEnd, SessionStart, UserPromptSubmit)"
     }
   ]
 }
