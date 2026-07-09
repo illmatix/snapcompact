@@ -75,8 +75,8 @@ transcribes the pixel text internally and works from it.
 glue for Claude Code: PreCompact and SessionEnd (only on `/clear`) render the
 transcript tail (last ~72K chars, usually ≤2 pages — hex duplication can add a
 third) to `~/.claude/snaps/<session_id>/`; SessionStart (compact|clear) shows a
-one-line savings note as a `systemMessage` (user-visible, never fed into the model
-context — the token-saver stops spending tokens to report itself); UserPromptSubmit
+one-line savings note via `additionalContext` (the only hook channel Claude Code
+renders visibly — as `SessionStart:compact says: ...`); UserPromptSubmit
 tells the post-compact session (once) to Read the PNGs if it needs lost detail. `/clear` starts a new
 session_id, so lookups fall back to the newest snap dir whose recorded cwd matches
 the project and was snapped in the last few minutes. The plugin registers all four
