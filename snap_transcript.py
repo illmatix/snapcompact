@@ -2,18 +2,20 @@
 """Claude Code hook glue for snapcompact.
 
 PreCompact + SessionEnd(clear): snap_transcript.py snap    — render transcript tail to PNGs
-SessionStart(compact|clear):    snap_transcript.py notify  — one-line savings note the
-                                user sees in the message area
 UserPromptSubmit:               snap_transcript.py announce — tell the post-compact
-                                session the PNGs exist (once; runs after all
-                                SessionStart output, so no hook race)
+                                session the PNGs exist (once)
+statusLine (user-wired):        snap_transcript.py statusline — print "📸 <savings>" for
+                                the HUD; zero model-context cost. The savings note lives
+                                HERE, not in an injected SessionStart line — a SessionStart
+                                additionalContext note duplicated the HUD and claude-mem's
+                                own SessionStart summary while costing model tokens.
 
 All modes read the hook JSON from stdin. PNGs land in ~/.claude/snaps/<session_id>/
-(dirs 0700, files 0600). /clear starts a new session_id, so notify/announce fall back
+(dirs 0700, files 0600). /clear starts a new session_id, so announce/statusline fall back
 to the newest snap dir whose meta.json cwd matches this project AND was snapped within
 the last few minutes (an old stale snap must not resurface as this session's history).
 
-PIL and the DejaVu font are imported lazily inside the snap branch only: notify/announce
+PIL and the DejaVu font are imported lazily inside the snap branch only: announce/statusline
 stay stdlib-only (no per-prompt import cost), and a missing render dependency disables
 snapping with a visible note instead of silently killing every hook.
 """
@@ -144,22 +146,6 @@ def main():
         except Exception as e:  # never break compaction; leave a trace instead of /dev/null
             _log(f"snap failed: {e!r}")
 
-    elif sys.argv[1] == "notify":
-        outdir = snap_dir_for(hook)
-        if not outdir or (outdir / "announced").exists():
-            return
-        line = savings_line(outdir)
-        if line:
-            # additionalContext is the ONLY channel this build renders visibly
-            # (as "SessionStart:compact says: ..."). systemMessage was silently
-            # folded into the collapsed hook-success area AND still leaked into
-            # model context — worst of both. The savings line is ~25 tokens;
-            # showing it visibly beats hiding it to save nothing.
-            print(json.dumps({"hookSpecificOutput": {
-                "hookEventName": hook.get("hook_event_name", "SessionStart"),
-                "additionalContext": f"snapcompact: snapped {line}",
-            }}))
-
     elif sys.argv[1] == "statusline":
         # Statusline payload has no session_id; derive it from transcript_path's
         # stem (== session_id, == the snap dir name). Plain stdout, no JSON, no
@@ -180,10 +166,10 @@ def main():
         if flag.exists():  # already announced → cheap exit, skip the glob
             return
         pngs = sorted(outdir.glob("*.png"))
-        # additionalContext carries what the model needs (PNG paths). The savings
-        # note is shown once at compact time by notify; repeating it via a second
-        # channel here only leaks more tokens (systemMessage isn't out-of-context
-        # on this build) — so announce stays PNG-only.
+        # additionalContext carries what the model needs (PNG paths + how to read
+        # them). The savings stat is NOT injected anywhere in model context — it
+        # lives in the statusline (zero-token, user-wired) — so announce carries
+        # only actionable payload, no duplicated savings number.
         print(json.dumps({"hookSpecificOutput": {
             # echo the event we were invoked from — hardcoding broke when stale
             # in-session hook wiring (SessionStart) ran a newer script version
@@ -194,7 +180,11 @@ def main():
                 + ", ".join(str(p) for p in pngs)
                 + ". Newlines appear as ¶. If you need detail the compact summary lost, "
                   "Read these images (each costs ~3.3K tokens). Long hex values appear "
-                  "twice as `value [dup:value]` — trust them only when both copies match."
+                  "twice as `value [dup:value]` — trust them only when both copies match. "
+                  "These PNGs are approximate narrative recall, not an exact record: for "
+                  "any exact value (commit hashes, commands, file paths, code, numbers), "
+                  "the live transcript or structured memory (e.g. claude-mem observations) "
+                  "is authoritative — defer to it when it disagrees with a snap."
             ),
         }}))
         flag.write_text("")

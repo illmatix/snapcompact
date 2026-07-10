@@ -26,7 +26,7 @@ claude plugin marketplace add illmatix/snapcompact   # or a local clone path
 claude plugin install snapcompact@snapcompact
 ```
 
-Ships four hooks (PreCompact, SessionEnd, SessionStart, UserPromptSubmit) that
+Ships three hooks (PreCompact, SessionEnd, UserPromptSubmit) that
 auto-snapshot conversation history, plus a `/snap <file>` command. If you previously
 pasted the hooks into `~/.claude/settings.json` manually, remove them — the plugin
 provides the same ones.
@@ -74,13 +74,15 @@ transcribes the pixel text internally and works from it.
 **Auto-snapshot before compaction or clear** — `snap_transcript.py` is hook
 glue for Claude Code: PreCompact and SessionEnd (only on `/clear`) render the
 transcript tail (last ~72K chars, usually ≤2 pages — hex duplication can add a
-third) to `~/.claude/snaps/<session_id>/`; SessionStart (compact|clear) shows a
-one-line savings note via `additionalContext` (the only hook channel Claude Code
-renders visibly — as `SessionStart:compact says: ...`); UserPromptSubmit
-tells the post-compact session (once) to Read the PNGs if it needs lost detail. `/clear` starts a new
+third) to `~/.claude/snaps/<session_id>/`; UserPromptSubmit
+tells the post-compact session (once) to Read the PNGs if it needs lost detail, and
+that exact values defer to the live transcript / structured memory (the snap is
+approximate narrative). `/clear` starts a new
 session_id, so lookups fall back to the newest snap dir whose recorded cwd matches
-the project and was snapped in the last few minutes. The plugin registers all four
-automatically. For a manual (non-plugin) setup, copy the four entries from
+the project and was snapped in the last few minutes. The plugin registers all three
+automatically. The savings note is not injected into model context — it surfaces
+in the statusline instead (see below), so it costs no tokens and does not duplicate
+claude-mem's own SessionStart summary. For a manual (non-plugin) setup, copy the three entries from
 [`hooks/hooks.json`](hooks/hooks.json) into `~/.claude/settings.json`, replacing
 `${CLAUDE_PLUGIN_ROOT}` with your clone path.
 
