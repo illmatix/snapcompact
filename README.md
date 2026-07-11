@@ -31,6 +31,39 @@ auto-snapshot conversation history, plus a `/snap <file>` command. If you previo
 pasted the hooks into `~/.claude/settings.json` manually, remove them — the plugin
 provides the same ones.
 
+## omp (Oh My Pi)
+
+[omp](https://omp.sh) has its **own** snapcompact — a native compaction strategy
+(`compaction.strategy: snapcompact`, omp's default) shipped as the separate
+`@oh-my-pi/snapcompact` package. It's an independent, more evolved take on the same
+idea this PoC is built on (image discarded history into pixel-font PNG frames a vision
+model reads back, no LLM summary) — **not** this repo's code: omp renders in native code
+with provider-aware frame shapes and re-renders a bounded archive each compaction. So
+nothing here runs under omp — not the Python renderer, not the `hooks/hooks.json` command
+hooks above; omp loads JS/TS extension hooks and does its own imaging.
+
+What this repo adds for omp is the status-line piece. `omp/statusline-savings.ts` is
+an omp extension that reads the archive omp persists on each compaction and pins a
+**cumulative** segment like `📸 ~208k saved` via `ctx.ui.setStatus`: the text-token cost
+of all history snapcompact has archived this session — the live imaged frames plus
+everything since evicted to stay under budget — minus what those frames still cost as
+billed images. omp carries the tally forward on the archive itself, so it grows across
+the session (resetting only on a fresh compaction chain). The image cost uses the
+package's conservative flat per-frame estimate, so the figure is understated rather than
+inflated (hence the `~`).
+
+Install globally (every repo):
+
+```bash
+mkdir -p ~/.omp/agent/extensions
+ln -s "$PWD/omp/statusline-savings.ts" ~/.omp/agent/extensions/snapcompact-savings.ts
+```
+
+Per-repo instead: symlink/copy into `<repo>/.omp/extensions/`, or add the path to the
+`extensions:` array in `~/.omp/agent/config.yml`. The segment needs
+`statusLine.showHookStatus` (default on); disable it with
+`disabledExtensions: [extension-module:snapcompact-savings]`. Tests: `bun test omp/`.
+
 ## Usage
 
 ```bash
